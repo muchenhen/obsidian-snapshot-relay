@@ -1,0 +1,19 @@
+{
+  "name": "obsidian-snapshot-relay",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Manual Obsidian vault snapshots through a self-hosted server.",
+  "scripts": {
+    "build": "node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs development",
+    "test": "tsx --test tests/core.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "esbuild": "^0.24.2",
+    "obsidian": "^1.7.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

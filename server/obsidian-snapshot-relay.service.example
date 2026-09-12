@@ -1,0 +1,16 @@
+[Unit]
+Description=Obsidian Snapshot Relay
+After=network.target
+
+[Service]
+Type=simple
+User=obsidian-relay
+Group=obsidian-relay
+WorkingDirectory=/opt/obsidian-snapshot-relay
+EnvironmentFile=/etc/obsidian-snapshot-relay.env
+ExecStart=/usr/bin/python3 /opt/obsidian-snapshot-relay/server/server.py --host 127.0.0.1 --port 8787 --root /var/lib/obsidian-snapshot-relay/data
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
