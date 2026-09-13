@@ -1,6 +1,6 @@
 {
   "name": "obsidian-snapshot-relay",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "Manual Obsidian vault snapshots through a self-hosted server.",
   "scripts": {
