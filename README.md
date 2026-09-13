@@ -30,7 +30,7 @@ The generated main.js is committed so a user can install a release without setti
 
 For a local or development install, copy these three files into the target vault:
 
-    .obsidian/plugins/obsidian-snapshot-relay/
+    .obsidian/plugins/snapshot-relay/
       main.js
       manifest.json
       styles.css

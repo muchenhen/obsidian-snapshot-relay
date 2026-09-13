@@ -1,7 +1,7 @@
 {
-  "id": "obsidian-snapshot-relay",
+  "id": "snapshot-relay",
   "name": "Obsidian Snapshot Relay",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "minAppVersion": "1.4.0",
   "description": "Manual, confirmation-based vault snapshots through a self-hosted HTTP server.",
   "author": "muchenhen",
