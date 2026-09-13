@@ -5,7 +5,6 @@ import {
   Plugin,
   PluginSettingTab,
   Setting,
-  TFile,
   requestUrl,
 } from "obsidian";
 import { diffManifests, FileRecord, formatDiff, normalizePath, VaultManifest } from "./core";
@@ -29,11 +28,30 @@ interface ScannedFile {
   bytes: ArrayBuffer;
 }
 
+interface CreateSnapshotResponse {
+  snapshotId: string;
+}
+
+function statusOf(error: unknown): number | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === "number" ? status : undefined;
+}
+
+function isPartialSettings(value: unknown): value is Partial<SyncSettings> {
+  if (typeof value !== "object" || value === null) return false;
+  const item = value as Record<string, unknown>;
+  return ["serverUrl", "token", "vaultId", "excludedPrefixes"].every(
+    (key) => item[key] === undefined || typeof item[key] === "string",
+  );
+}
+
 export default class ObsidianSnapshotRelayPlugin extends Plugin {
   declare settings: SyncSettings;
 
   async onload() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const loaded: unknown = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, isPartialSettings(loaded) ? loaded : {});
     this.addSettingTab(new SyncSettingTab(this.app, this));
     this.addCommand({
       id: "preview-remote-snapshot",
@@ -70,14 +88,15 @@ export default class ObsidianSnapshotRelayPlugin extends Plugin {
     return Object.assign({ Authorization: "Bearer " + this.settings.token.trim() }, extra);
   }
 
-  private async jsonRequest(path: string, method: string, body?: string): Promise<any> {
+  private async jsonRequest<T>(path: string, method: string, body?: string): Promise<T> {
     const response = await requestUrl({
       url: this.apiUrl(path),
       method,
       headers: this.headers(body === undefined ? {} : { "Content-Type": "application/json" }),
       body,
     });
-    return response.json;
+    const parsed: unknown = JSON.parse(response.text) as unknown;
+    return parsed as T;
   }
 
   private async getRemoteManifest(): Promise<VaultManifest | null> {
@@ -85,7 +104,7 @@ export default class ObsidianSnapshotRelayPlugin extends Plugin {
       return await this.jsonRequest("/manifest", "GET");
     } catch (error) {
       const message = String(error);
-      if (message.includes("404") || (error as any)?.status === 404) return null;
+      if (message.includes("404") || statusOf(error) === 404) return null;
       throw error;
     }
   }
@@ -159,7 +178,7 @@ export default class ObsidianSnapshotRelayPlugin extends Plugin {
         "上传当前 Vault 到服务端？\n" + formatDiff(diff) + "\n服务端会生成一个新快照。",
       );
       if (!confirmed) return;
-      const created = await this.jsonRequest("/snapshots", "POST");
+      const created = await this.jsonRequest<CreateSnapshotResponse>("/snapshots", "POST");
       const snapshotId = String(created.snapshotId);
       for (const file of local) {
         await requestUrl({
@@ -281,7 +300,7 @@ class SyncSettingTab extends PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Snapshot Relay" });
+    new Setting(containerEl).setName("Snapshot Relay").setHeading();
     new Setting(containerEl)
       .setName("服务地址")
       .setDesc("例如 https://sync.example.com")
