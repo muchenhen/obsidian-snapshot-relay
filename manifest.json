@@ -1,7 +1,7 @@
 {
   "id": "snapshot-relay",
   "name": "Snapshot Relay",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "minAppVersion": "1.4.0",
   "description": "Manual, confirmation-based vault snapshots through a self-hosted HTTP server.",
   "author": "muchenhen",

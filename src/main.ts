@@ -110,7 +110,8 @@ export default class ObsidianSnapshotRelayPlugin extends Plugin {
   }
 
   private excluded(path: string): boolean {
-    if (path.startsWith(".obsidian/plugins/snapshot-relay/")) return true;
+    const configDir = this.app.vault.configDir.replace(/\/+$/, "");
+    if (path.startsWith(configDir + "/plugins/snapshot-relay/")) return true;
     return this.settings.excludedPrefixes
       .split("\n")
       .map((item) => item.trim().replace(/^\/+/, ""))
