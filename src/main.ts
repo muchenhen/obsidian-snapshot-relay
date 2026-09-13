@@ -281,7 +281,7 @@ class SyncSettingTab extends PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Obsidian Snapshot Relay" });
+    containerEl.createEl("h2", { text: "Snapshot Relay" });
     new Setting(containerEl)
       .setName("服务地址")
       .setDesc("例如 https://sync.example.com")

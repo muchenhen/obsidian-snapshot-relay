@@ -1,12 +1,12 @@
-# Obsidian Snapshot Relay
+# Snapshot Relay
 
 Manual, confirmation-based snapshots for an Obsidian vault backed by a self-hosted relay server.
 
-Snapshot Relay is provider-neutral: it does not depend on Google Drive, Google Cloud, a particular VPS, or a vendor-specific tunnel. The relay only stores versioned vault snapshots; the Obsidian plugin controls when a snapshot is previewed, uploaded, or downloaded.
+Snapshot Relay is provider-neutral: it does not depend on Google Drive, Google Cloud, a particular VPS, or a vendor-specific tunnel. The relay only stores versioned vault snapshots; the plugin controls when a snapshot is previewed, uploaded, or downloaded.
 
 ## What it does
 
-- Runs in Obsidian on desktop and mobile platforms.
+- Runs as an Obsidian community plugin on desktop and mobile platforms.
 - Shows a local/remote manifest diff before upload or download.
 - Uploads the current vault as an immutable snapshot.
 - Downloads a selected remote snapshot into the current vault.
