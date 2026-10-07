@@ -161,7 +161,8 @@ export default class ObsidianSnapshotRelayPlugin extends Plugin {
         new Notice("服务端还没有远程快照；当前 Vault 有 " + local.length + " 个文件。");
         return;
       }
-      new Notice("远程快照 " + remote.snapshotId + "：本地/远程差异：" + this.summary(local.map((x) => x.record), remote.files));
+      const remoteFiles = remote.files.filter((file) => !this.excluded(file.path));
+      new Notice("远程快照 " + remote.snapshotId + "：本地/远程差异：" + this.summary(local.map((x) => x.record), remoteFiles));
     } catch (error) {
       new Notice("预览失败：" + String(error));
     }
@@ -208,19 +209,21 @@ export default class ObsidianSnapshotRelayPlugin extends Plugin {
         new Notice("服务端还没有远程快照。");
         return;
       }
+      // A receiving device may exclude paths that are present in another device's snapshot.
+      const remoteFiles = remote.files.filter((file) => !this.excluded(file.path));
       const local = await this.scanVault();
-      const diff = diffManifests(local.map((x) => x.record), remote.files);
+      const diff = diffManifests(local.map((x) => x.record), remoteFiles);
       const confirmed = await ConfirmModal.ask(
         this.app,
         "用远程快照覆盖当前 Vault？\n" + formatDiff(diff) + "\n本地被覆盖或删除的文件会先备份到 snapshot-relay-backups。",
       );
       if (!confirmed) return;
       await this.backupLocal(local);
-      const remotePaths = new Set(remote.files.map((file) => file.path));
+      const remotePaths = new Set(remoteFiles.map((file) => file.path));
       for (const file of local) {
         if (!remotePaths.has(file.record.path)) await this.app.vault.adapter.remove(file.record.path);
       }
-      for (const file of remote.files) {
+      for (const file of remoteFiles) {
         const response = await requestUrl({
           url: this.apiUrl("/snapshots/" + encodeURIComponent(remote.snapshotId) + "/files/" + this.encodeFilePath(file.path)),
           method: "GET",

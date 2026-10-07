@@ -46,7 +46,11 @@ The plugin settings contain:
 - Server URL — the HTTPS base URL of the relay, for example https://relay.example.com/.
 - Access token — a bearer token configured on the server. Never commit or share it publicly.
 - Vault ID — a stable namespace such as my-notes-2026. Use the same value on every device for one vault.
-- Excluded path prefixes — one path prefix per line. The plugin directory is always excluded.
+- Excluded path prefixes — one vault-relative path prefix per line, for example `attachments/` or `coding/`. Rules apply to uploads, remote previews, and downloads on that device. The plugin directory is always excluded.
+
+Devices can use different exclusions for the same Vault ID. For example, Android can exclude `coding/` while the desktop uploads that directory. Android will skip those remote files when previewing or downloading; existing local files under an excluded prefix are left untouched, and are not backed up or deleted. Excluding a directory does not remove files already downloaded there. After upgrading, remove those unwanted local files manually if needed.
+
+The default `snapshot-relay-backups/` exclusion also skips backups present in a remote snapshot.
 
 A Vault ID is a relay namespace, not a Google Drive ID or a local filesystem path. Changing it creates a separate remote namespace.
 
