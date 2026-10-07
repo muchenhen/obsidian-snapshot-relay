@@ -118,7 +118,7 @@ test("preview excludes remote paths using this device's settings", async () => {
 test("download never requests, backs up, overwrites or removes excluded files", async () => {
   const state = setup({
     localPaths: ["notes/old.md", "ignored/local.md", "snapshot-relay-backups/previous/old.md"],
-    remotePaths: ["notes/new.md", "ignored/deep/file.md", "snapshot-relay-backups/remote/old.md"],
+    remotePaths: ["notes/new.md", "ignored/local.md", "ignored/deep/file.md", "snapshot-relay-backups/remote/old.md"],
   });
   await state.plugin.downloadRemoteSnapshot();
   assert.deepEqual(state.requests.map(({ url }) => new URL(url).pathname), [
@@ -169,4 +169,31 @@ test("upload still publishes only included local files and reports all removed r
   assert.deepEqual(manifest.files.map(({ path }) => path), ["notes/old.md"]);
   assert.match(state.confirmations[0], /新增 1，修改 0，删除 2，未变化 0/);
   assert.deepEqual(state.notices, ["上传完成：uploaded-snapshot"]);
+});
+
+test("download with every file excluded preserves existing local files", async () => {
+  const state = setup({
+    localPaths: ["ignored/local.md"],
+    remotePaths: ["ignored/local.md", "ignored/remote.md"],
+  });
+  await state.plugin.downloadRemoteSnapshot();
+  assert.equal(state.requests.length, 1);
+  assert.deepEqual(state.writes, []);
+  assert.deepEqual(state.removals, []);
+  assert.deepEqual(state.folders, []);
+  assert.match(state.confirmations[0], /新增 0，修改 0，删除 0，未变化 0/);
+  assert.deepEqual(state.notices, ["下载完成：remote-snapshot"]);
+});
+
+test("download respects multiple rules with whitespace and preserves similarly named directories", async () => {
+  const state = setup({
+    excludedPrefixes: "  /ignored/  \r\n\n private.md \r\n",
+    localPaths: [],
+    remotePaths: ["ignored/file.md", "private.md", "ignored-other/allowed.md"],
+  });
+  await state.plugin.downloadRemoteSnapshot();
+  assert.equal(state.requests.length, 2);
+  assert.deepEqual(state.writes, ["ignored-other/allowed.md"]);
+  assert.match(state.confirmations[0], /新增 1，修改 0，删除 0，未变化 0/);
+  assert.deepEqual(state.notices, ["下载完成：remote-snapshot"]);
 });
