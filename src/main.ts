@@ -14,6 +14,7 @@ interface SyncSettings {
   token: string;
   vaultId: string;
   excludedPrefixes: string;
+  backupBeforeDownload: boolean;
 }
 
 const DEFAULT_SETTINGS: SyncSettings = {
@@ -21,6 +22,7 @@ const DEFAULT_SETTINGS: SyncSettings = {
   token: "",
   vaultId: "",
   excludedPrefixes: "snapshot-relay-backups/",
+  backupBeforeDownload: false,
 };
 
 const BACKUP_DIR = "snapshot-relay-backups";
@@ -45,7 +47,7 @@ function isPartialSettings(value: unknown): value is Partial<SyncSettings> {
   const item = value as Record<string, unknown>;
   return ["serverUrl", "token", "vaultId", "excludedPrefixes"].every(
     (key) => item[key] === undefined || typeof item[key] === "string",
-  );
+  ) && (item.backupBeforeDownload === undefined || typeof item.backupBeforeDownload === "boolean");
 }
 
 export default class ObsidianSnapshotRelayPlugin extends Plugin {
@@ -217,13 +219,19 @@ export default class ObsidianSnapshotRelayPlugin extends Plugin {
       const remoteFiles = remote.files.filter((file) => !this.excluded(file.path));
       const local = await this.scanVault();
       const diff = diffManifests(local.map((x) => x.record), remoteFiles);
+      const backupBeforeDownload = this.settings.backupBeforeDownload;
+      const backupMessage = backupBeforeDownload
+        ? "本地被覆盖或删除的文件会先备份到 snapshot-relay-backups。"
+        : "下载前不创建本地备份。";
       const confirmed = await ConfirmModal.ask(
         this.app,
-        "用远程快照覆盖当前 Vault？\n" + formatDiff(diff) + "\n本地被覆盖或删除的文件会先备份到 snapshot-relay-backups。",
+        "用远程快照覆盖当前 Vault？\n" + formatDiff(diff) + "\n" + backupMessage,
       );
       if (!confirmed) return;
-      const backupPaths = new Set([...diff.changed, ...diff.deleted]);
-      await this.backupLocal(local.filter((file) => backupPaths.has(file.record.path)));
+      if (backupBeforeDownload) {
+        const backupPaths = new Set([...diff.changed, ...diff.deleted]);
+        await this.backupLocal(local.filter((file) => backupPaths.has(file.record.path)));
+      }
       const remotePaths = new Set(remoteFiles.map((file) => file.path));
       for (const file of local) {
         if (!remotePaths.has(file.record.path)) await this.app.vault.adapter.remove(file.record.path);
@@ -331,6 +339,13 @@ class SyncSettingTab extends PluginSettingTab {
       .setDesc("为空时使用当前 Vault 名称")
       .addText((text) => text.setValue(this.plugin.settings.vaultId).onChange(async (value) => {
         this.plugin.settings.vaultId = value;
+        await this.plugin.saveSettings();
+      }));
+    new Setting(containerEl)
+      .setName("下载前创建本地备份")
+      .setDesc("默认关闭。开启后，仅备份下载时将被修改或删除的本地文件。")
+      .addToggle((toggle) => toggle.setValue(this.plugin.settings.backupBeforeDownload).onChange(async (value) => {
+        this.plugin.settings.backupBeforeDownload = value;
         await this.plugin.saveSettings();
       }));
     new Setting(containerEl)
