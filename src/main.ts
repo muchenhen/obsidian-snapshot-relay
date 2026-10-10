@@ -23,6 +23,8 @@ const DEFAULT_SETTINGS: SyncSettings = {
   excludedPrefixes: "snapshot-relay-backups/",
 };
 
+const BACKUP_DIR = "snapshot-relay-backups";
+
 interface ScannedFile {
   record: FileRecord;
   bytes: ArrayBuffer;
@@ -110,6 +112,8 @@ export default class ObsidianSnapshotRelayPlugin extends Plugin {
   }
 
   private excluded(path: string): boolean {
+    // Local recovery copies must never be synced or recursively backed up.
+    if (path === BACKUP_DIR || path.startsWith(BACKUP_DIR + "/")) return true;
     const configDir = this.app.vault.configDir.replace(/\/+$/, "");
     if (path.startsWith(configDir + "/plugins/snapshot-relay/")) return true;
     return this.settings.excludedPrefixes
@@ -218,12 +222,15 @@ export default class ObsidianSnapshotRelayPlugin extends Plugin {
         "用远程快照覆盖当前 Vault？\n" + formatDiff(diff) + "\n本地被覆盖或删除的文件会先备份到 snapshot-relay-backups。",
       );
       if (!confirmed) return;
-      await this.backupLocal(local);
+      const backupPaths = new Set([...diff.changed, ...diff.deleted]);
+      await this.backupLocal(local.filter((file) => backupPaths.has(file.record.path)));
       const remotePaths = new Set(remoteFiles.map((file) => file.path));
       for (const file of local) {
         if (!remotePaths.has(file.record.path)) await this.app.vault.adapter.remove(file.record.path);
       }
+      const downloadPaths = new Set([...diff.added, ...diff.changed]);
       for (const file of remoteFiles) {
+        if (!downloadPaths.has(file.path)) continue;
         const response = await requestUrl({
           url: this.apiUrl("/snapshots/" + encodeURIComponent(remote.snapshotId) + "/files/" + this.encodeFilePath(file.path)),
           method: "GET",
@@ -253,7 +260,7 @@ export default class ObsidianSnapshotRelayPlugin extends Plugin {
   }
 
   private async backupLocal(files: ScannedFile[]) {
-    const root = "snapshot-relay-backups/" + new Date().toISOString().replace(/[:.]/g, "-");
+    const root = BACKUP_DIR + "/" + new Date().toISOString().replace(/[:.]/g, "-");
     for (const file of files) {
       const target = root + "/" + file.record.path;
       await this.ensureParent(target);
@@ -328,7 +335,7 @@ class SyncSettingTab extends PluginSettingTab {
       }));
     new Setting(containerEl)
       .setName("排除路径前缀")
-      .setDesc("每行一个，例如 snapshot-relay-backups/；插件自己的设置目录始终排除")
+      .setDesc("每行一个，例如 coding/；本地备份目录和插件自己的设置目录始终排除")
       .addTextArea((text) => text.setValue(this.plugin.settings.excludedPrefixes).onChange(async (value) => {
         this.plugin.settings.excludedPrefixes = value;
         await this.plugin.saveSettings();

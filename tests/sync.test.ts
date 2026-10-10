@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { webcrypto } from "node:crypto";
+import { createHash, webcrypto } from "node:crypto";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
 import { buildSync } from "esbuild";
@@ -28,6 +28,7 @@ function setup(options: {
   accepted?: boolean;
   localPaths?: string[];
   remotePaths?: string[];
+  unchangedPaths?: string[];
 } = {}) {
   const requests: { url: string; method: string; body?: string }[] = [];
   const writes: string[] = [];
@@ -42,7 +43,9 @@ function setup(options: {
     snapshotId: "remote-snapshot",
     createdAt: "2026-01-01T00:00:00Z",
     files: (options.remotePaths ?? ["notes/new.md", "ignored/deep/file.md"]).map((path) => ({
-      path, size: 4, sha256: "remote-hash", mtime: 1,
+      path, size: 4,
+      sha256: options.unchangedPaths?.includes(path) ? createHash("sha256").update("note").digest("hex") : "remote-hash",
+      mtime: 1,
     })),
   };
   const app = {
@@ -195,5 +198,82 @@ test("download respects multiple rules with whitespace and preserves similarly n
   assert.equal(state.requests.length, 2);
   assert.deepEqual(state.writes, ["ignored-other/allowed.md"]);
   assert.match(state.confirmations[0], /新增 1，修改 0，删除 0，未变化 0/);
+  assert.deepEqual(state.notices, ["下载完成：remote-snapshot"]);
+});
+
+test("backup directories stay excluded from downloads even when removed from user rules", async () => {
+  for (const excludedPrefixes of ["", "ignored/"]) {
+    const state = setup({
+      excludedPrefixes,
+      localPaths: ["notes/old.md", "snapshot-relay-backups/previous/notes/old.md"],
+      remotePaths: ["notes/new.md", "snapshot-relay-backups/remote/notes/old.md"],
+    });
+    await state.plugin.downloadRemoteSnapshot();
+    assert.equal(state.requests.length, 2);
+    assert.ok(state.requests[1].url.endsWith("/files/notes/new.md"));
+    assert.equal(state.writes.length, 2);
+    assert.match(state.writes[0], /^snapshot-relay-backups\/[^/]+\/notes\/old\.md$/);
+    assert.equal(state.writes[1], "notes/new.md");
+    assert.deepEqual(state.removals, ["notes/old.md"]);
+    assert.match(state.confirmations[0], /新增 1，修改 0，删除 1，未变化 0/);
+    assert.deepEqual(state.notices, ["下载完成：remote-snapshot"]);
+  }
+});
+
+test("backup directories stay excluded from uploads without excluding similarly named folders", async () => {
+  const state = setup({
+    excludedPrefixes: "",
+    localPaths: ["notes/old.md", "snapshot-relay-backups/previous/old.md", "snapshot-relay-backups-other/note.md"],
+    remotePaths: [],
+  });
+  await state.plugin.uploadCurrentVault();
+  const manifest = JSON.parse(state.requests[state.requests.length - 1].body!) as VaultManifest;
+  assert.deepEqual(manifest.files.map(({ path }) => path), ["notes/old.md", "snapshot-relay-backups-other/note.md"]);
+  assert.deepEqual(state.notices, ["上传完成：uploaded-snapshot"]);
+});
+
+test("preview never counts remote backups even with blank user rules", async () => {
+  const state = setup({
+    excludedPrefixes: "",
+    localPaths: [],
+    remotePaths: ["notes/new.md", "snapshot-relay-backups/remote/old.md"],
+  });
+  await state.plugin.previewRemote();
+  assert.match(state.notices[0], /新增 1，修改 0，删除 0，未变化 0/);
+});
+
+test("repeated unchanged downloads do not create backups or rewrite files", async () => {
+  const state = setup({
+    localPaths: ["notes/same.md"],
+    remotePaths: ["notes/same.md"],
+    unchangedPaths: ["notes/same.md"],
+  });
+  await state.plugin.downloadRemoteSnapshot();
+  await state.plugin.downloadRemoteSnapshot();
+  assert.equal(state.requests.length, 2);
+  assert.ok(state.requests.every(({ url }) => url.endsWith("/manifest")));
+  assert.deepEqual(state.writes, []);
+  assert.deepEqual(state.removals, []);
+  assert.deepEqual(state.folders, []);
+  assert.ok(state.confirmations.every((message) => /新增 0，修改 0，删除 0，未变化 1/.test(message)));
+});
+
+test("downloads back up only changed or deleted local files and fetch only added or changed files", async () => {
+  const state = setup({
+    localPaths: ["notes/changed.md", "notes/deleted.md", "notes/same.md"],
+    remotePaths: ["notes/added.md", "notes/changed.md", "notes/same.md"],
+    unchangedPaths: ["notes/same.md"],
+  });
+  await state.plugin.downloadRemoteSnapshot();
+  assert.deepEqual(state.requests.slice(1).map(({ url }) => new URL(url).pathname), [
+    "/v1/vaults/test-vault/snapshots/remote-snapshot/files/notes/added.md",
+    "/v1/vaults/test-vault/snapshots/remote-snapshot/files/notes/changed.md",
+  ]);
+  assert.equal(state.writes.length, 4);
+  assert.match(state.writes[0], /^snapshot-relay-backups\/[^/]+\/notes\/changed\.md$/);
+  assert.match(state.writes[1], /^snapshot-relay-backups\/[^/]+\/notes\/deleted\.md$/);
+  assert.deepEqual(state.writes.slice(2), ["notes/added.md", "notes/changed.md"]);
+  assert.deepEqual(state.removals, ["notes/deleted.md"]);
+  assert.match(state.confirmations[0], /新增 1，修改 1，删除 1，未变化 1/);
   assert.deepEqual(state.notices, ["下载完成：remote-snapshot"]);
 });
