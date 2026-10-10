@@ -10,7 +10,7 @@ Snapshot Relay is provider-neutral: it does not depend on Google Drive, Google C
 - Shows a local/remote manifest diff before upload or download.
 - Uploads the current vault as an immutable snapshot.
 - Downloads a selected remote snapshot into the current vault.
-- Backs up local files before a download replaces or removes them.
+- Backs up only local files whose content will change or that will be removed by a download. Unchanged files are not downloaded again or backed up.
 - Uses a bearer token over HTTPS.
 - Keeps background synchronization disabled in the current release.
 - Excludes the plugin's own settings directory so the relay token is never included in a snapshot.
@@ -46,11 +46,11 @@ The plugin settings contain:
 - Server URL — the HTTPS base URL of the relay, for example https://relay.example.com/.
 - Access token — a bearer token configured on the server. Never commit or share it publicly.
 - Vault ID — a stable namespace such as my-notes-2026. Use the same value on every device for one vault.
-- Excluded path prefixes — one vault-relative path prefix per line, for example `attachments/` or `coding/`. Rules apply to uploads, remote previews, and downloads on that device. The plugin directory is always excluded.
+- Excluded path prefixes — one vault-relative path prefix per line, for example `attachments/` or `coding/`. Rules apply to uploads, remote previews, and downloads on that device. The plugin directory and `snapshot-relay-backups/` are always excluded, even if the list is empty or customized.
 
 Devices can use different exclusions for the same Vault ID. For example, Android can exclude `coding/` while the desktop uploads that directory. Android will skip those remote files when previewing or downloading; existing local files under an excluded prefix are left untouched, and are not backed up or deleted. Excluding a directory does not remove files already downloaded there. After upgrading, remove those unwanted local files manually if needed.
 
-The default `snapshot-relay-backups/` exclusion also skips backups present in a remote snapshot.
+`snapshot-relay-backups/` contains local recovery copies created before a download modifies or deletes local files. Seeing this folder after a download can mean the plugin created a local backup. It is always excluded from uploads, remote previews, and downloads, so backups already present in a remote snapshot are skipped and local backups are never recursively copied. Repeated downloads of identical files create no new backups. Existing backup folders are left untouched.
 
 A Vault ID is a relay namespace, not a Google Drive ID or a local filesystem path. Changing it creates a separate remote namespace.
 
